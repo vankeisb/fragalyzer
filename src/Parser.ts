@@ -54,10 +54,10 @@ export function parseDemo(file: File): Promise<ParseResult> {
       let players: Player[];
 
       demoFile.gameEvents.on('begin_new_match', e => {
-        debugger;
         if (players === undefined) {
           players = [];
-          players = demoFile.players.filter(p => !p.isFakePlayer).map(p => {
+          const dfps = demoFile.players;
+          players = dfps.filter(p => !p.isFakePlayer && p.teamNumber >= 2).map(p => {
             const team = p.team;
             const teamName = team
                 ? (team.clanName || p.teamNumber.toString())

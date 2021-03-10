@@ -1,17 +1,26 @@
 import {pos, Pos} from "tea-pop-core";
-import {DemoFile} from "demofile";
+import {DemoFile, TeamNumber} from "demofile";
 
 
 export type Positions = Map<string, Pos[]>;
 
-export interface Player {
+export interface FPlayer {
   readonly name: string;
-  readonly team: string;
+  readonly clanName: string;
+}
+
+export interface FRound {
+  readonly winner: number;
+  readonly clanT: string;
+  readonly scoreT: number;
+  readonly clanCT: string;
+  readonly scoreCT: number;
 }
 
 export interface ParseResult {
   readonly positions: Positions;
-  readonly players: ReadonlyArray<Player>;
+  readonly players: ReadonlyArray<FPlayer>;
+  readonly rounds: ReadonlyArray<FRound>;
 }
 
 export function parseDemo(file: File): Promise<ParseResult> {
@@ -24,11 +33,6 @@ export function parseDemo(file: File): Promise<ParseResult> {
 
       let nbTicks = 0;
       let start = new Date().getTime();
-
-      demoFile.gameEvents.on("bomb_planted", e => {
-        const player = demoFile.entities.getByUserId(e.userid)!;
-        console.log(`'${player.name}' planted the bomb at '${player.placeName}'`);
-      });
 
       const positions = new Map<string, Pos[]>();
 
@@ -51,24 +55,62 @@ export function parseDemo(file: File): Promise<ParseResult> {
         }
       })
 
-      let players: Player[];
+      let players: FPlayer[];
+      const rounds: FRound[] = [];
+      let winner: number = 0;
 
       demoFile.gameEvents.on('begin_new_match', e => {
+        console.log("begin match");
         if (players === undefined) {
           players = [];
           const dfps = demoFile.players;
           players = dfps.filter(p => !p.isFakePlayer && p.teamNumber >= 2).map(p => {
             const team = p.team;
-            const teamName = team
-                ? (team.clanName || p.teamNumber.toString())
-                : p.teamNumber.toString();
             return {
               name: p.name,
-              team: teamName,
+              clanName: team?.clanName || p.teamNumber.toString(),
             };
           });
           console.log("players", players);
         }
+      })
+
+      demoFile.gameEvents.on("round_end", e => {
+        console.log("round end", e.winner)
+        winner = e.winner;
+      })
+
+      demoFile.gameEvents.on('round_officially_ended', e => {
+        console.log("round officially ended");
+        const teams = demoFile.teams;
+
+        const terrorists = teams[2];
+        const cts = teams[3];
+
+        console.log(
+            "\t%s: %s score %d\n\t%s: %s score %d",
+            terrorists.teamName,
+            terrorists.clanName,
+            terrorists.score,
+            cts.teamName,
+            cts.clanName,
+            cts.score
+        );
+        rounds.push({
+          winner,
+          scoreCT: cts.score,
+          clanCT: cts.clanName,
+          scoreT: terrorists.score,
+          clanT: terrorists.clanName,
+        })
+      })
+
+      demoFile.gameEvents.on('round_start', e => {
+        winner = 0;
+        console.log("round start", demoFile.gameRules.roundsPlayed)
+        // rounds.push({
+        //   index: demoFile.gameRules.roundsPlayed
+        // })
       })
 
       // demoFile.userMessages.on('EndOfMatchAllPlayersData', e => {
@@ -85,9 +127,10 @@ export function parseDemo(file: File): Promise<ParseResult> {
           console.error("Error during parsing:", e.error);
           reject(e)
         } else {
-          const res = {
+          const res: ParseResult = {
             positions,
             players,
+            rounds,
           };
           console.log("parsed", res);
           resolve(res);
@@ -113,15 +156,15 @@ export function filterPositions(positions: Positions, selectedPlayers: ReadonlyS
 export function getTeams(parseResult: ParseResult): ReadonlyArray<string> {
   const s = new Set<string>();
   parseResult.players.forEach(player => {
-    s.add(player.team);
+    s.add(player.clanName);
   })
   return Array.from(s).sort();
 }
 
-export function getPlayers(parseResult: ParseResult, team: string): ReadonlyArray<Player> {
-  const res = new Array<Player>();
+export function getPlayers(parseResult: ParseResult, team: string): ReadonlyArray<FPlayer> {
+  const res = new Array<FPlayer>();
   parseResult.players.forEach(p => {
-    if (p.team === team) {
+    if (p.clanName === team) {
       res.push(p);
     }
   })

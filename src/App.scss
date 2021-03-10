@@ -11,28 +11,45 @@
     justify-content: center;
   }
 
-  canvas {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-  }
+  &.ready {
 
-  .right-panel {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    background-color: lightgrey;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 
-    .player-color {
-      width: 24px;
-      height: 24px;
-      display: inline-block;
+    .main {
+
+      display: flex;
+      flex-grow: 1;
+      flex-direction: row;
+
+      canvas {
+        flex-grow: 1;
+      }
+
+      .right-panel {
+        background-color: lightgrey;
+        overflow-y: auto;
+
+        .player-color {
+          width: 24px;
+          height: 24px;
+          display: inline-block;
+        }
+
+        .team {
+          .score {
+            color: red;
+          }
+        }
+      }
+
+    }
+
+    .timeline {
+      background-color: lightgray;
     }
   }
+
 
 }
 

@@ -87,10 +87,18 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
 function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
   switch (msg.tag) {
     case "got-window-dimensions": {
-      return noCmd({
+      const newModel: Model = {
         ...model,
         windowDimensions: msg.d
-      })
+      };
+      const cmd: Cmd<Msg> =
+          model.state.tag === "ready"
+              ? model.state.positions.toMaybe().map(drawIntoCanvas).withDefaultSupply(() => Cmd.none())
+              : Cmd.none();
+      return [
+          newModel,
+          cmd
+      ]
     }
     case "file-dropped": {
       return msg.file
@@ -117,21 +125,7 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
     case "got-positions": {
       const { positions } = msg;
       const cmd: Cmd<Msg> = positions.match(
-          ps => {
-            // positions received, draw into the canvas
-            const t: Task<Error, Positions> = Task.fromLambda(() => {
-              const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-              if (!canvas) {
-                throw new Error("canvas not found !");
-              }
-              drawPositions(canvas, ps);
-              return ps;
-            });
-            return Task.attempt(t, r => ({
-              tag: 'got-draw-result',
-              r
-            }))
-          },
+          drawIntoCanvas,
           err => {
             console.log(err);
             return Cmd.none();
@@ -150,6 +144,21 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
       return noCmd(model);
     }
   }
+}
+
+function drawIntoCanvas(positions: Positions): Cmd<Msg> {
+  const t: Task<Error, Positions> = Task.fromLambda(() => {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+    if (!canvas) {
+      throw new Error("canvas not found !");
+    }
+    drawPositions(canvas, positions);
+    return positions;
+  });
+  return Task.attempt(t, r => ({
+    tag: 'got-draw-result',
+    r
+  }))
 }
 
 const windowEvents = new WindowEvents();

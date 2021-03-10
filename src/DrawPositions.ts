@@ -122,8 +122,6 @@ export function drawPositions(canvas: HTMLCanvasElement, positions: Positions) {
     colorIndex++;
   }
 
-  debugger;
-
   const rect = canvas.getBoundingClientRect();
   const targetMax = Math.min(rect.height, rect.width);
   const normalizedPositions = normalizePositions(targetMax, positions);

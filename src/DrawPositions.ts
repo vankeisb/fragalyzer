@@ -1,62 +1,7 @@
 import * as fs from "fs";
 import {DemoFile} from "demofile";
 import {Box, Dim, pos, Pos} from "tea-pop-core";
-
-export type Positions = Map<string, Pos[]>;
-
-export function extractPositions(file: File): Promise<Positions> {
-  return new Promise<Positions>((resolve, reject) => {
-    file.arrayBuffer().then(arrayBuffer => {
-
-      const buffer = Buffer.from(arrayBuffer);
-
-      const demoFile = new DemoFile();
-
-      let nbTicks = 0;
-      let start = new Date().getTime();
-
-      demoFile.gameEvents.on("bomb_planted", e => {
-        const player = demoFile.entities.getByUserId(e.userid)!;
-        console.log(`'${player.name}' planted the bomb at '${player.placeName}'`);
-      });
-
-      const positions = new Map<string, Pos[]>();
-
-      demoFile.on("tickend", tick => {
-        // console.log("tick", nbTicks, tick);
-        nbTicks++;
-        const players = demoFile.entities.players;
-        if (players && players.length > 0) {
-          players.forEach(player => {
-            if (player && !player.isFakePlayer && player.isAlive) {
-              const p = pos(player.position.x, player.position.y);
-              let pps = positions.get(player.name);
-              if (pps === undefined) {
-                pps = []
-                positions.set(player.name, pps);
-              }
-              pps.push(p)
-            }
-          })
-        }
-      })
-
-      demoFile.on("end", e => {
-        console.log("done, ticks =", nbTicks, "elapsed =", new Date().getTime() - start);
-        console.log("Finished.");
-        if (e.error) {
-          console.error("Error during parsing:", e.error);
-          reject(e)
-        } else {
-          resolve(positions);
-        }
-      });
-
-      // Start parsing the buffer now that we've added our event listeners
-      demoFile.parse(buffer);
-    });
-  });
-}
+import {Positions} from "./Parser";
 
 export function normalize(srcMin: number, srcMax: number, srcValue: number, targetMax: number): number {
   const srcLen = srcMax - srcMin;

@@ -1,9 +1,10 @@
 import React from 'react';
-import './App.css';
-import {Cmd, Dispatcher, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
+import './App.scss';
+import {Cmd, Dispatcher, err, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
 import {DevTools, Program, WindowEvents} from "react-tea-cup";
 import {Dim, windowDimensions} from "tea-pop-core";
-import {drawPositions, extractPositions, Positions} from "./DrawPositions";
+import {drawPositions} from "./DrawPositions";
+import {getAllPlayers, parseDemo, ParseResult, Positions} from "./Parser";
 
 interface Model {
   readonly windowDimensions: Dim;
@@ -13,12 +14,12 @@ interface Model {
 type State =
     | { tag: 'fresh' }
     | { tag: 'parsing' }
-    | { tag: 'ready', positions: Result<Error,Positions> }
+    | { tag: 'ready', parseResult: Result<Error,ParseResult>, selectedPlayers: ReadonlySet<string> }
 
 type Msg =
   | { tag: 'got-window-dimensions', d: Dim }
   | { tag: 'file-dropped', file: Maybe<File> }
-  | { tag: 'got-positions', positions: Result<Error, Positions> }
+  | { tag: 'got-parse-result', parseResult: Result<Error, ParseResult> }
   | { tag: 'got-draw-result', r: Result<Error, Positions> }
 
 function gotWindowDimensions(d:Dim): Msg {
@@ -46,7 +47,7 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
     case "fresh": {
       return (
           <div
-              className="home"
+              className="fragalyzer home"
               onDragOver={(e) => {
                 e.preventDefault();
               }}
@@ -76,10 +77,40 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
       )
     }
     case "parsing": {
-      return <p>Parsing, plz wait...</p>
+      return <div className="fragalyzer parsing"><p>Parsing, plz wait...</p></div>
     }
     case "ready": {
-      return <canvas height={model.windowDimensions.h} width={model.windowDimensions.w} id={canvasId}/>;
+      return state.parseResult.match(
+          parseResult => (
+              <div className="fragalyzer ready">
+                <canvas height={model.windowDimensions.h} width={model.windowDimensions.w} id={canvasId}/>
+                <div className="right-panel">
+                  {Array.from(parseResult.teams.entries()).map(([team, players]) =>
+                    <div key={team} className="team">
+                      <h2>{team}</h2>
+                      <ul>
+                        {players.map(player =>
+                          <li key={team + player}>
+                            <input type="checkbox" name={team+player} checked={state.selectedPlayers.has(player)}/>
+                            {player}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+          ),
+          error => (
+              <div className="fragalyzer error">
+                <h1>Oooops</h1>
+                <p>An error occured :</p>
+                <pre>
+                  {error.message}
+                </pre>
+              </div>
+          )
+      )
     }
   }
 }
@@ -93,7 +124,7 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
       };
       const cmd: Cmd<Msg> =
           model.state.tag === "ready"
-              ? model.state.positions.toMaybe().map(drawIntoCanvas).withDefaultSupply(() => Cmd.none())
+              ? model.state.parseResult.toMaybe().map(pr => drawIntoCanvas(pr.positions)).withDefaultSupply(() => Cmd.none())
               : Cmd.none();
       return [
           newModel,
@@ -109,10 +140,14 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
                 tag: 'parsing'
               }
             };
-            const t: Task<Error, Positions> = Task.fromPromise(() =>
-              extractPositions(f)
+            const t: Task<Error, ParseResult> = Task.fromPromise(() =>
+              parseDemo(f)
             );
-            const cmd: Cmd<Msg> = Task.attempt(t, positions => ({ tag: "got-positions", positions }))
+            const cmd: Cmd<Msg> =
+                Task.attempt(
+                    t,
+                    parseResult => ({ tag: "got-parse-result", parseResult })
+                )
             return [newModel, cmd];
           })
           .withDefaultSupply(() => noCmd({
@@ -122,10 +157,10 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
             }
           }));
     }
-    case "got-positions": {
-      const { positions } = msg;
-      const cmd: Cmd<Msg> = positions.match(
-          drawIntoCanvas,
+    case "got-parse-result": {
+      const { parseResult } = msg;
+      const cmd: Cmd<Msg> = parseResult.match(
+          pr => drawIntoCanvas(pr.positions),
           err => {
             console.log(err);
             return Cmd.none();
@@ -135,7 +170,11 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
         ...model,
         state: {
           tag: "ready",
-          positions
+          parseResult,
+          selectedPlayers: parseResult.match(
+              pr => getAllPlayers(pr),
+              err => new Set(),
+          )
         }
       }, cmd];
     }

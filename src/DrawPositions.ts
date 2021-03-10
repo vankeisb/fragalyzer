@@ -28,7 +28,7 @@ export function extractPositions(file: File): Promise<Positions> {
         const players = demoFile.entities.players;
         if (players && players.length > 0) {
           players.forEach(player => {
-            if (player) {
+            if (player && !player.isFakePlayer && player.isAlive) {
               const p = pos(player.position.x, player.position.y);
               let pps = positions.get(player.name);
               if (pps === undefined) {
@@ -94,17 +94,41 @@ export function normalizePositions(targetMax: number, positions: Positions): Pos
   return res;
 }
 
+const colors: ReadonlyArray<string> = [
+  [0, 140, 255],
+  [255, 140, 255],
+  [255, 0, 255],
+  [255, 0, 0],
+  [255, 132, 97],
+  [0, 183, 32],
+  [238, 183, 32],
+  [10, 183, 164],
+  [198, 197, 0],
+  [42, 197, 255],
+  [221, 91, 90]
+].map(([r,g,b]) => `rgba(${r},${g},${b},0.05)`);
+
+
 export function drawPositions(canvas: HTMLCanvasElement, positions: Positions) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw "no context";
   }
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+
+  let colorIndex = 0;
+  const playerColors: Map<string, string> = new Map();
+  for (let playerName of positions.keys()) {
+    playerColors.set(playerName, colors[colorIndex]);
+    colorIndex++;
+  }
+
+  debugger;
 
   const rect = canvas.getBoundingClientRect();
   const targetMax = Math.min(rect.height, rect.width);
   const normalizedPositions = normalizePositions(targetMax, positions);
-  for (let [_, pps] of normalizedPositions.entries()) {
+  for (let [playerName, pps] of normalizedPositions.entries()) {
+    ctx.fillStyle = playerColors.get(playerName) ?? 'rgba(0, 0, 0, 0.2)';
     for (let pp of pps) {
       ctx.fillRect(pp.x, targetMax - pp.y, 2, 2);
     }

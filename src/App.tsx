@@ -3,8 +3,8 @@ import './App.scss';
 import {Cmd, Dispatcher, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
 import {DevTools, Program, WindowEvents} from "react-tea-cup";
 import {Dim, windowDimensions} from "tea-pop-core";
-import {drawPositions} from "./DrawPositions";
-import {parseDemo, ParseResult, Positions} from "./Parser";
+import {colorToString, drawPositions, getPlayerColor} from "./DrawPositions";
+import {getPlayers, getTeams, parseDemo, ParseResult, Positions} from "./Parser";
 
 interface Model {
   readonly windowDimensions: Dim;
@@ -86,24 +86,31 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
               <div className="fragalyzer ready">
                 <canvas height={model.windowDimensions.h} width={model.windowDimensions.w} id={canvasId}/>
                 <div className="right-panel">
-                  {Array.from(parseResult.teams.entries()).map(([team, players]) =>
-                    <div key={team} className="team">
-                      <h2>{team}</h2>
-                      <ul>
-                        {players.map(player =>
-                          <li key={player}>
-                            <input
-                                type="checkbox"
-                                name={player}
-                                checked={state.selectedPlayers.has(player)}
-                                onChange={e => dispatch({tag: 'toggle-player', player})}
-                            />
-                            {player}
-                          </li>
-                        )}
+                  {getTeams(parseResult).map(team => {
+                    const teamPlayers = getPlayers(parseResult, team).map(p => p.name);
+                    const allPlayers = parseResult.players.map(p => p.name).sort();
+                    return (
+                      <div key={team} className="team">
+                        <h2>{team}</h2>
+                        <ul>
+                          {teamPlayers.map(player =>
+                            <li key={player}>
+                              <div className="player-color" style={{
+                                backgroundColor: colorToString(getPlayerColor(allPlayers, player), 1.0)
+                              }}/>
+                              <input
+                                  type="checkbox"
+                                  name={player}
+                                  checked={state.selectedPlayers.has(player)}
+                                  onChange={e => dispatch({tag: 'toggle-player', player: player})}
+                              />
+                              {player}
+                            </li>
+                          )}
                       </ul>
                     </div>
-                  )}
+                  );
+                })}
                 </div>
               </div>
           ),
@@ -162,16 +169,7 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
     case "got-parse-result": {
       const { parseResult } = msg;
       const selectedPlayers: ReadonlySet<string> = parseResult.match(
-          pr => {
-            // collect all players and team names
-            const s: Set<string> = new Set();
-            for (let players of pr.teams.values()) {
-              for (let player of players) {
-                s.add(player);
-              }
-            }
-            return s;
-          },
+          pr => new Set(pr.players.map(p => p.name)),
           () => new Set()
       );
       const newModel: Model = {
@@ -213,20 +211,20 @@ function draw(model: Model): Cmd<Msg> {
   if (model.state.tag === "ready") {
     const { selectedPlayers } = model.state;
     return model.state.parseResult.match(
-        parseResult => drawIntoCanvas(parseResult.positions, selectedPlayers),
+        parseResult => drawIntoCanvas(parseResult.positions, selectedPlayers, parseResult.players.map(p => p.name).sort()),
         err => Cmd.none()
     )
   }
   return Cmd.none();
 }
 
-function drawIntoCanvas(positions: Positions, selectedPlayers: ReadonlySet<string>): Cmd<Msg> {
+function drawIntoCanvas(positions: Positions, selectedPlayers: ReadonlySet<string>, allPlayers: ReadonlyArray<string>): Cmd<Msg> {
   const t: Task<Error, Positions> = Task.fromLambda(() => {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
       throw new Error("canvas not found !");
     }
-    drawPositions(canvas, positions, selectedPlayers);
+    drawPositions(canvas, positions, selectedPlayers, allPlayers);
     return positions;
   });
   return Task.attempt(t, r => ({

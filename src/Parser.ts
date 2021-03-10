@@ -4,9 +4,14 @@ import {DemoFile} from "demofile";
 
 export type Positions = Map<string, Pos[]>;
 
+export interface Player {
+  readonly name: string;
+  readonly team: string;
+}
+
 export interface ParseResult {
   readonly positions: Positions;
-  readonly teams: ReadonlyMap<string,string[]>;
+  readonly players: ReadonlyArray<Player>;
 }
 
 export function parseDemo(file: File): Promise<ParseResult> {
@@ -46,19 +51,32 @@ export function parseDemo(file: File): Promise<ParseResult> {
         }
       })
 
-      let teams: Map<string,string[]>;
+      let players: Player[];
 
       demoFile.gameEvents.on('begin_new_match', e => {
-        if (!teams) {
-          teams = new Map();
-          demoFile.teams.forEach(team => {
-            if (team && team.clanName) {
-              teams.set(team.clanName, team.members.map(member => member.name))
-            }
+        debugger;
+        if (players === undefined) {
+          players = [];
+          players = demoFile.players.filter(p => !p.isFakePlayer).map(p => {
+            const team = p.team;
+            const teamName = team
+                ? (team.clanName || p.teamNumber.toString())
+                : p.teamNumber.toString();
+            return {
+              name: p.name,
+              team: teamName,
+            };
           });
-          console.log("teams", teams);
+          console.log("players", players);
         }
       })
+
+      // demoFile.userMessages.on('EndOfMatchAllPlayersData', e => {
+      //   debugger;
+      //   e.allplayerdata.forEach(playerData => {
+      //     console.log(playerData.playercolor);
+      //   })
+      // });
 
       demoFile.on("end", e => {
         console.log("done, ticks =", nbTicks, "elapsed =", new Date().getTime() - start);
@@ -69,7 +87,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
         } else {
           const res = {
             positions,
-            teams: teams || new Map(),
+            players,
           };
           console.log("parsed", res);
           resolve(res);
@@ -90,4 +108,22 @@ export function filterPositions(positions: Positions, selectedPlayers: ReadonlyS
     }
   })
   return newPos;
+}
+
+export function getTeams(parseResult: ParseResult): ReadonlyArray<string> {
+  const s = new Set<string>();
+  parseResult.players.forEach(player => {
+    s.add(player.team);
+  })
+  return Array.from(s).sort();
+}
+
+export function getPlayers(parseResult: ParseResult, team: string): ReadonlyArray<Player> {
+  const res = new Array<Player>();
+  parseResult.players.forEach(p => {
+    if (p.team === team) {
+      res.push(p);
+    }
+  })
+  return res.sort((a, b) => a.name.localeCompare(b.name));
 }

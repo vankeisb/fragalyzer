@@ -39,7 +39,9 @@ export function normalizePositions(targetMax: number, positions: Positions): Pos
   return res;
 }
 
-const colors: ReadonlyArray<string> = [
+export type Color = [r:number, g:number, b: number];
+
+const colors: ReadonlyArray<Color> = [
   [0, 140, 255],
   [255, 140, 255],
   [255, 0, 255],
@@ -51,10 +53,24 @@ const colors: ReadonlyArray<string> = [
   [198, 197, 0],
   [42, 197, 255],
   [221, 91, 90]
-].map(([r,g,b]) => `rgba(${r},${g},${b},0.05)`);
+];
 
+const unknownColor: Color = [0, 0, 0];
 
-export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, selectedPlayers: ReadonlySet<string>) {
+export function getPlayerColor(players: ReadonlyArray<string>, player: string): [r:number, g:number, b: number] {
+  const i = players.indexOf(player);
+  if (i === -1) {
+    return unknownColor;
+  }
+  const c = colors[i];
+  return c ?? unknownColor;
+}
+
+export function colorToString(c: Color, alpha: number): string {
+  return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+}
+
+export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, selectedPlayers: ReadonlySet<string>, allPlayers: ReadonlyArray<string>) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw "no context";
@@ -62,18 +78,11 @@ export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, s
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  let colorIndex = 0;
-  const playerColors: Map<string, string> = new Map();
-  for (let playerName of positions.keys()) {
-    playerColors.set(playerName, colors[colorIndex]);
-    colorIndex++;
-  }
-
   const rect = canvas.getBoundingClientRect();
   const targetMax = Math.min(rect.height, rect.width);
   const normalizedPositions = normalizePositions(targetMax, positions);
   for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers).entries()) {
-    ctx.fillStyle = playerColors.get(playerName) ?? 'rgba(0, 0, 0, 0.2)';
+    ctx.fillStyle = colorToString(getPlayerColor(allPlayers, playerName), 0.05);
     for (let pp of pps) {
       ctx.fillRect(pp.x, targetMax - pp.y, 2, 2);
     }

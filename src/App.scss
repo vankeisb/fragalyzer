@@ -6,7 +6,7 @@
   right: 0;
   display: flex;
 
-  .home {
+  &.home, &.parsing {
     align-items: center;
     justify-content: center;
   }
@@ -25,6 +25,12 @@
     top: 0;
     bottom: 0;
     background-color: lightgrey;
+
+    .player-color {
+      width: 24px;
+      height: 24px;
+      display: inline-block;
+    }
   }
 
 }

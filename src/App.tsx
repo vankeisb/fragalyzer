@@ -1,10 +1,10 @@
 import React from 'react';
 import './App.scss';
-import {Cmd, Dispatcher, err, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
+import {Cmd, Dispatcher, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
 import {DevTools, Program, WindowEvents} from "react-tea-cup";
 import {Dim, windowDimensions} from "tea-pop-core";
 import {drawPositions} from "./DrawPositions";
-import {getAllPlayers, parseDemo, ParseResult, Positions} from "./Parser";
+import {parseDemo, ParseResult, Positions} from "./Parser";
 
 interface Model {
   readonly windowDimensions: Dim;
@@ -21,6 +21,7 @@ type Msg =
   | { tag: 'file-dropped', file: Maybe<File> }
   | { tag: 'got-parse-result', parseResult: Result<Error, ParseResult> }
   | { tag: 'got-draw-result', r: Result<Error, Positions> }
+  | { tag: 'toggle-player', player: string }
 
 function gotWindowDimensions(d:Dim): Msg {
   return { tag: "got-window-dimensions", d };
@@ -90,8 +91,13 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                       <h2>{team}</h2>
                       <ul>
                         {players.map(player =>
-                          <li key={team + player}>
-                            <input type="checkbox" name={team+player} checked={state.selectedPlayers.has(player)}/>
+                          <li key={player}>
+                            <input
+                                type="checkbox"
+                                name={player}
+                                checked={state.selectedPlayers.has(player)}
+                                onChange={e => dispatch({tag: 'toggle-player', player})}
+                            />
                             {player}
                           </li>
                         )}
@@ -122,13 +128,9 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
         ...model,
         windowDimensions: msg.d
       };
-      const cmd: Cmd<Msg> =
-          model.state.tag === "ready"
-              ? model.state.parseResult.toMaybe().map(pr => drawIntoCanvas(pr.positions)).withDefaultSupply(() => Cmd.none())
-              : Cmd.none();
       return [
           newModel,
-          cmd
+          draw(newModel)
       ]
     }
     case "file-dropped": {
@@ -159,39 +161,72 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
     }
     case "got-parse-result": {
       const { parseResult } = msg;
-      const cmd: Cmd<Msg> = parseResult.match(
-          pr => drawIntoCanvas(pr.positions),
-          err => {
-            console.log(err);
-            return Cmd.none();
-          }
-      )
-      return [{
+      const selectedPlayers: ReadonlySet<string> = parseResult.match(
+          pr => {
+            // collect all players and team names
+            const s: Set<string> = new Set();
+            for (let players of pr.teams.values()) {
+              for (let player of players) {
+                s.add(player);
+              }
+            }
+            return s;
+          },
+          () => new Set()
+      );
+      const newModel: Model = {
         ...model,
         state: {
           tag: "ready",
           parseResult,
-          selectedPlayers: parseResult.match(
-              pr => getAllPlayers(pr),
-              err => new Set(),
-          )
+          selectedPlayers
         }
-      }, cmd];
+      };
+      return [newModel, draw(newModel)];
     }
     case "got-draw-result": {
       console.log("draw res");
       return noCmd(model);
     }
+    case "toggle-player": {
+      if (model.state.tag === "ready") {
+        const { selectedPlayers } = model.state;
+        const spa: string[] = selectedPlayers.has(msg.player)
+          ? Array.from(selectedPlayers).filter(x => x !== msg.player)
+          : [...Array.from(selectedPlayers), msg.player];
+        const newState = {
+          ...model.state,
+          selectedPlayers: new Set(spa)
+        }
+        const newModel = {
+          ...model,
+          state: newState,
+        }
+        return [newModel, draw(newModel)];
+      }
+      return noCmd(model);
+    }
   }
 }
 
-function drawIntoCanvas(positions: Positions): Cmd<Msg> {
+function draw(model: Model): Cmd<Msg> {
+  if (model.state.tag === "ready") {
+    const { selectedPlayers } = model.state;
+    return model.state.parseResult.match(
+        parseResult => drawIntoCanvas(parseResult.positions, selectedPlayers),
+        err => Cmd.none()
+    )
+  }
+  return Cmd.none();
+}
+
+function drawIntoCanvas(positions: Positions, selectedPlayers: ReadonlySet<string>): Cmd<Msg> {
   const t: Task<Error, Positions> = Task.fromLambda(() => {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
       throw new Error("canvas not found !");
     }
-    drawPositions(canvas, positions);
+    drawPositions(canvas, positions, selectedPlayers);
     return positions;
   });
   return Task.attempt(t, r => ({

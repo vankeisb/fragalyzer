@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import {DemoFile} from "demofile";
 import {Box, Dim, pos, Pos} from "tea-pop-core";
-import {Positions} from "./Parser";
+import {filterPositions, Positions} from "./Parser";
 
 export function normalize(srcMin: number, srcMax: number, srcValue: number, targetMax: number): number {
   const srcLen = srcMax - srcMin;
@@ -54,11 +54,13 @@ const colors: ReadonlyArray<string> = [
 ].map(([r,g,b]) => `rgba(${r},${g},${b},0.05)`);
 
 
-export function drawPositions(canvas: HTMLCanvasElement, positions: Positions) {
+export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, selectedPlayers: ReadonlySet<string>) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw "no context";
   }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   let colorIndex = 0;
   const playerColors: Map<string, string> = new Map();
@@ -70,7 +72,7 @@ export function drawPositions(canvas: HTMLCanvasElement, positions: Positions) {
   const rect = canvas.getBoundingClientRect();
   const targetMax = Math.min(rect.height, rect.width);
   const normalizedPositions = normalizePositions(targetMax, positions);
-  for (let [playerName, pps] of normalizedPositions.entries()) {
+  for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers).entries()) {
     ctx.fillStyle = playerColors.get(playerName) ?? 'rgba(0, 0, 0, 0.2)';
     for (let pp of pps) {
       ctx.fillRect(pp.x, targetMax - pp.y, 2, 2);

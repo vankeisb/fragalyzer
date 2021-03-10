@@ -9,14 +9,6 @@ export interface ParseResult {
   readonly teams: ReadonlyMap<string,string[]>;
 }
 
-export function getAllPlayers(parseResult: ParseResult): ReadonlySet<string> {
-  const s = new Set<string>();
-  for (let players of parseResult.teams.values()) {
-    players.forEach(p => s.add(p));
-  }
-  return s;
-}
-
 export function parseDemo(file: File): Promise<ParseResult> {
   return new Promise<ParseResult>((resolve, reject) => {
     file.arrayBuffer().then(arrayBuffer => {
@@ -88,4 +80,14 @@ export function parseDemo(file: File): Promise<ParseResult> {
       demoFile.parse(buffer);
     });
   });
+}
+
+export function filterPositions(positions: Positions, selectedPlayers: ReadonlySet<string>): Positions {
+  const newPos: Positions = new Map();
+  positions.forEach((pps, player) => {
+    if (selectedPlayers.has(player)) {
+      newPos.set(player, pps);
+    }
+  })
+  return newPos;
 }

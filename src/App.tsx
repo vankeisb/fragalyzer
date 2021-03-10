@@ -134,9 +134,7 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                     })}
                   </div>
                 </div>
-                <div className="timeline">
-                  TODO
-                </div>
+                {viewTimeline(parseResult)}
               </div>
           );
         }
@@ -271,6 +269,18 @@ function subscriptions(model: Model): Sub<Msg> {
   return windowEvents.on('resize', () => windowResized)
 }
 
+
+function viewTimeline(parseResult: ParseResult) {
+  return (
+    <div className="timeline">
+      {parseResult.rounds.map((round, index) =>
+        <div className="round" key={index}>
+          {index}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function App() {
   return (

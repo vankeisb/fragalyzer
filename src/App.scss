@@ -47,6 +47,13 @@
 
     .timeline {
       background-color: lightgray;
+      display: flex;
+      flex-direction: row;
+
+      .round {
+        flex-grow: 1;
+        border: 1px solid black;
+      }
     }
   }
 

@@ -53,6 +53,14 @@
       .round {
         flex-grow: 1;
         border: 1px solid black;
+
+        &:hover {
+          cursor: pointer;
+        }
+
+        &.selected {
+          background-color: lightskyblue;
+        }
       }
     }
   }

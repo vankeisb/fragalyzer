@@ -1,7 +1,5 @@
-import * as fs from "fs";
-import {DemoFile} from "demofile";
-import {Box, Dim, pos, Pos} from "tea-pop-core";
-import {filterPositions, Positions} from "./Parser";
+import {pos} from "tea-pop-core";
+import {filterPositions, FPos, getPlayerNames, ParseResult, Positions, TickRange} from "./Parser";
 
 export function normalize(srcMin: number, srcMax: number, srcValue: number, targetMax: number): number {
   const srcLen = srcMax - srcMin;
@@ -19,22 +17,23 @@ export function normalizePositions(targetMax: number, positions: Positions): Pos
   // first loop, to get min/max values
   for (let p of positions.entries()) {
     for (let playerPos of p[1]) {
-      minX = Math.min(playerPos.x, minX);
-      maxX = Math.max(playerPos.x, maxX);
-      minY = Math.min(playerPos.y, minY);
-      maxY = Math.max(playerPos.y, maxY);
+      minX = Math.min(playerPos.p.x, minX);
+      maxX = Math.max(playerPos.p.x, maxX);
+      minY = Math.min(playerPos.p.y, minY);
+      maxY = Math.max(playerPos.p.y, maxY);
     }
   }
 
-  const res: Positions = new Map<string, Pos[]>();
+  const res: Positions = new Map<string, FPos[]>();
   // loop again and recreate map with normalized positions
   for (let [playerName, playerPositions] of positions.entries()) {
-    res.set(playerName, playerPositions.map(pp =>
-        pos(
-          normalize(minX, maxX, pp.x, targetMax),
-          normalize(minY, maxY, pp.y, targetMax),
-        )
-    ));
+    res.set(playerName, playerPositions.map(pp => ({
+      p: pos(
+          normalize(minX, maxX, pp.p.x, targetMax),
+          normalize(minY, maxY, pp.p.y, targetMax),
+      ),
+      tick: pp.tick,
+    })));
   }
   return res;
 }
@@ -70,7 +69,7 @@ export function colorToString(c: Color, alpha: number): string {
   return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
 }
 
-export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, selectedPlayers: ReadonlySet<string>, allPlayers: ReadonlyArray<string>) {
+export function drawPositions(canvas: HTMLCanvasElement, parseResult: ParseResult, selectedPlayers: ReadonlySet<string>, selectedRounds: ReadonlySet<number>) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw "no context";
@@ -78,13 +77,18 @@ export function drawPositions(canvas: HTMLCanvasElement, positions: Positions, s
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  const { positions } = parseResult;
+  const allPlayers = getPlayerNames(parseResult);
   const rect = canvas.getBoundingClientRect();
   const targetMax = Math.min(rect.height, rect.width);
   const normalizedPositions = normalizePositions(targetMax, positions);
-  for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers).entries()) {
+  const tickRanges: ReadonlyArray<TickRange> = parseResult.rounds
+      .filter((r, index) => selectedRounds.has(index))
+      .map(r => [r.startTick, r.endTick]);
+  for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers, tickRanges).entries()) {
     ctx.fillStyle = colorToString(getPlayerColor(allPlayers, playerName), 0.05);
     for (let pp of pps) {
-      ctx.fillRect(pp.x, targetMax - pp.y, 2, 2);
+      ctx.fillRect(pp.p.x, targetMax - pp.p.y, 2, 2);
     }
   }
 }

@@ -2,9 +2,9 @@ import React from 'react';
 import './App.scss';
 import {Cmd, Dispatcher, just, Maybe, noCmd, nothing, Result, Sub, Task} from "tea-cup-core";
 import {DevTools, Program, WindowEvents} from "react-tea-cup";
-import {dim, Dim, windowDimensions} from "tea-pop-core";
+import {dim, Dim} from "tea-pop-core";
 import {colorToString, drawPositions, getPlayerColor} from "./DrawPositions";
-import {getPlayers, getTeams, parseDemo, ParseResult, Positions} from "./Parser";
+import {getPlayerNames, getPlayersInTeam, getTeams, parseDemo, ParseResult, Positions} from "./Parser";
 
 interface Model {
   readonly state: State;
@@ -14,15 +14,24 @@ interface Model {
 type State =
     | { tag: 'fresh' }
     | { tag: 'parsing' }
-    | { tag: 'ready', parseResult: ParseResult, selectedPlayers: ReadonlySet<string>, canvasDimensions: Dim }
+    | ReadyState
+
+interface ReadyState {
+  tag: 'ready';
+  readonly canvasDimensions: Dim;
+  readonly parseResult: ParseResult;
+  readonly selectedPlayers: ReadonlySet<string>;
+  readonly selectedRounds: ReadonlySet<number>;
+}
 
 type Msg =
   | { tag: 'window-resized' }
   | { tag: 'got-canvas-dimensions', r: Result<Error, Dim> }
   | { tag: 'file-dropped', file: Maybe<File> }
   | { tag: 'got-parse-result', r: Result<Error, ParseResult> }
-  | { tag: 'got-draw-result', r: Result<Error, Positions> }
+  | { tag: 'got-draw-result', r: Result<Error, ParseResult> }
   | { tag: 'toggle-player', player: string }
+  | { tag: 'toggle-round', index: number }
 
 const windowResized: Msg = { tag: 'window-resized'}
 
@@ -108,8 +117,8 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                   <canvas height={canvasDimensions.h} width={canvasDimensions.w} id={canvasId}/>
                   <div className="right-panel">
                     {getTeams(parseResult).map(team => {
-                      const teamPlayers = getPlayers(parseResult, team).map(p => p.name);
-                      const allPlayers = parseResult.players.map(p => p.name).sort();
+                      const teamPlayers = getPlayersInTeam(parseResult, team).map(p => p.name);
+                      const allPlayers = getPlayerNames(parseResult);
                       return (
                           <div key={team} className="team">
                             <h2 className="team">{team} <span className="score">TODO</span></h2>
@@ -134,7 +143,7 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                     })}
                   </div>
                 </div>
-                {viewTimeline(parseResult)}
+                {viewTimeline(dispatch, parseResult, state.selectedRounds)}
               </div>
           );
         }
@@ -145,13 +154,15 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
 function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
   switch (msg.tag) {
     case "window-resized": {
-      return [model, Task.attempt(getCanvasDimensions, gotCanvasDimensions)];
+      if (model.state.tag === "ready") {
+        return [model, Task.attempt(getCanvasDimensions, gotCanvasDimensions)];
+      }
+      return noCmd(model);
     }
     case "got-canvas-dimensions": {
       return msg.r.match(
           canvasDimensions => {
-            if (model.state.tag === "ready") {
-              const { state } = model;
+            return ifReady(model, state => {
               const newModel: Model = {
                 ...model,
                 state: {
@@ -163,8 +174,7 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
                 newModel,
                 draw(newModel)
               ]
-            }
-            return noCmd(model);
+            });
           },
           err => noCmd({...model, error: just(err)})
       )
@@ -206,6 +216,7 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
                 parseResult,
                 selectedPlayers,
                 canvasDimensions: Dim.zero,
+                selectedRounds: new Set(parseResult.rounds.map((r, index) => index)),
               }
             };
             return [newModel, Task.attempt(getCanvasDimensions, gotCanvasDimensions)];
@@ -220,42 +231,66 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
       return noCmd(model);
     }
     case "toggle-player": {
-      if (model.state.tag === "ready") {
-        const { selectedPlayers } = model.state;
+      return ifReady(model, state => {
+        const { selectedPlayers } = state;
         const spa: string[] = selectedPlayers.has(msg.player)
-          ? Array.from(selectedPlayers).filter(x => x !== msg.player)
-          : [...Array.from(selectedPlayers), msg.player];
-        const newState = {
-          ...model.state,
+            ? Array.from(selectedPlayers).filter(x => x !== msg.player)
+            : [...Array.from(selectedPlayers), msg.player];
+        const newModel: Model = setState(model, {
+          ...state,
           selectedPlayers: new Set(spa)
-        }
-        const newModel = {
-          ...model,
-          state: newState,
-        }
+        });
         return [newModel, draw(newModel)];
-      }
-      return noCmd(model);
+      })
     }
+    case "toggle-round": {
+      return ifReady(model, state => {
+        const { selectedRounds } = state;
+        const a = Array.from(selectedRounds);
+        const newSelRounds = new Set(
+            selectedRounds.has(msg.index)
+              ? a.filter(x => x !== msg.index)
+              : [...a, msg.index]
+        );
+        const newModel: Model = setState(model, {
+          ...state,
+          selectedRounds: newSelRounds
+        });
+        return [newModel, draw(newModel)];
+      })
+    }
+  }
+}
+
+function ifReady(model: Model, f:(state: ReadyState) => [Model, Cmd<Msg>]): [Model, Cmd<Msg>] {
+  if (model.state.tag === 'ready') {
+    return f(model.state);
+  }
+  return noCmd(model)
+}
+
+function setState(model: Model, state: State): Model {
+  return {
+    ...model, state
   }
 }
 
 function draw(model: Model): Cmd<Msg> {
   if (model.state.tag === "ready") {
-    const { selectedPlayers, parseResult } = model.state;
-    return drawIntoCanvas(parseResult.positions, selectedPlayers, parseResult.players.map(p => p.name).sort())
+    const { selectedPlayers, parseResult, selectedRounds } = model.state;
+    return drawIntoCanvas(parseResult, selectedPlayers, selectedRounds)
   }
   return Cmd.none();
 }
 
-function drawIntoCanvas(positions: Positions, selectedPlayers: ReadonlySet<string>, allPlayers: ReadonlyArray<string>): Cmd<Msg> {
-  const t: Task<Error, Positions> = Task.fromLambda(() => {
+function drawIntoCanvas(parseResult: ParseResult, selectedPlayers: ReadonlySet<string>, selectedRounds: ReadonlySet<number>): Cmd<Msg> {
+  const t: Task<Error, ParseResult> = Task.fromLambda(() => {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
       throw new Error("canvas not found !");
     }
-    drawPositions(canvas, positions, selectedPlayers, allPlayers);
-    return positions;
+    drawPositions(canvas, parseResult, selectedPlayers, selectedRounds);
+    return parseResult;
   });
   return Task.attempt(t, r => ({
     tag: 'got-draw-result',
@@ -270,14 +305,22 @@ function subscriptions(model: Model): Sub<Msg> {
 }
 
 
-function viewTimeline(parseResult: ParseResult) {
+function viewTimeline(dispatch: Dispatcher<Msg>, parseResult: ParseResult, selectedRounds: ReadonlySet<number>) {
   return (
     <div className="timeline">
-      {parseResult.rounds.map((round, index) =>
-        <div className="round" key={index}>
-          {index}
-        </div>
-      )}
+      {parseResult.rounds.map((round, index) => {
+        const selected = selectedRounds.has(index);
+        const className = `round${selected ? ' selected' : ''}`;
+        return (
+            <div
+                className={className}
+                key={index}
+                onClick={() => dispatch({tag: 'toggle-round', index})}
+            >
+              {index}
+            </div>
+        )
+      })}
     </div>
   );
 }

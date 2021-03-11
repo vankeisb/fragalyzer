@@ -1,8 +1,13 @@
 import {pos, Pos} from "tea-pop-core";
-import {DemoFile, TeamNumber} from "demofile";
+import {DemoFile} from "demofile";
 
 
-export type Positions = Map<string, Pos[]>;
+export type Positions = Map<string, FPos[]>;
+
+export interface FPos {
+  readonly p: Pos;
+  readonly tick: number;
+}
 
 export interface FPlayer {
   readonly name: string;
@@ -10,6 +15,8 @@ export interface FPlayer {
 }
 
 export interface FRound {
+  readonly startTick: number;
+  readonly endTick: number;
   readonly winner: number;
   readonly clanT: string;
   readonly scoreT: number;
@@ -34,7 +41,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
       let nbTicks = 0;
       let start = new Date().getTime();
 
-      const positions = new Map<string, Pos[]>();
+      const positions = new Map<string, FPos[]>();
 
       demoFile.on("tickend", tick => {
         // console.log("tick", nbTicks, tick);
@@ -49,7 +56,11 @@ export function parseDemo(file: File): Promise<ParseResult> {
                 pps = []
                 positions.set(player.name, pps);
               }
-              pps.push(p)
+              const fp: FPos = {
+                p,
+                tick,
+              }
+              pps.push(fp)
             }
           })
         }
@@ -75,6 +86,13 @@ export function parseDemo(file: File): Promise<ParseResult> {
         }
       })
 
+      let roundStartTick: number = 0;
+
+      demoFile.gameEvents.on("round_start", () => {
+        console.log("round start");
+        roundStartTick = demoFile.currentTick;
+      })
+
       demoFile.gameEvents.on("round_end", e => {
         console.log("round end", e.winner)
         winner = e.winner;
@@ -97,6 +115,8 @@ export function parseDemo(file: File): Promise<ParseResult> {
             cts.score
         );
         rounds.push({
+          startTick: roundStartTick,
+          endTick: demoFile.currentTick,
           winner,
           scoreCT: cts.score,
           clanCT: cts.clanName,
@@ -143,11 +163,16 @@ export function parseDemo(file: File): Promise<ParseResult> {
   });
 }
 
-export function filterPositions(positions: Positions, selectedPlayers: ReadonlySet<string>): Positions {
+export type TickRange = [startTick: number, endTick: number];
+
+export function filterPositions(positions: Positions, selectedPlayers: ReadonlySet<string>, selectedTicks: ReadonlyArray<TickRange>): Positions {
   const newPos: Positions = new Map();
   positions.forEach((pps, player) => {
     if (selectedPlayers.has(player)) {
-      newPos.set(player, pps);
+      newPos.set(player, pps.filter(p => {
+        const matchingTr = selectedTicks.find(tr => p.tick >= tr[0] && p.tick <= tr[1]);
+        return matchingTr !== undefined;
+      }));
     }
   })
   return newPos;
@@ -161,7 +186,7 @@ export function getTeams(parseResult: ParseResult): ReadonlyArray<string> {
   return Array.from(s).sort();
 }
 
-export function getPlayers(parseResult: ParseResult, team: string): ReadonlyArray<FPlayer> {
+export function getPlayersInTeam(parseResult: ParseResult, team: string): ReadonlyArray<FPlayer> {
   const res = new Array<FPlayer>();
   parseResult.players.forEach(p => {
     if (p.clanName === team) {
@@ -169,4 +194,8 @@ export function getPlayers(parseResult: ParseResult, team: string): ReadonlyArra
     }
   })
   return res.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getPlayerNames(parseResult: ParseResult): ReadonlyArray<string> {
+  return parseResult.players.map(p => p.name).sort();
 }

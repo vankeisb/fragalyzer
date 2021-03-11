@@ -72,7 +72,7 @@ export function colorToString(c: Color, alpha: number): string {
 export function drawPositions(canvas: HTMLCanvasElement, parseResult: ParseResult, selectedPlayers: ReadonlySet<string>, selectedRounds: ReadonlySet<number>) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
-    throw "no context";
+    throw new Error("no context");
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);

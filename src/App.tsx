@@ -150,6 +150,10 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                     />
                   </div>
                   <div className="right-panel">
+                    <h2>Map</h2>
+                    <p>
+                      {state.parseResult.mapName}
+                    </p>
                     {getTeams(parseResult).map(team => {
                       const teamPlayers = getPlayersInTeam(parseResult, team).map(p => p.name);
                       const allPlayers = getPlayerNames(parseResult);
@@ -363,7 +367,7 @@ function viewTimeline(dispatch: Dispatcher<Msg>, parseResult: ParseResult, selec
                 key={index}
                 onClick={() => dispatch({tag: 'toggle-round', index})}
             >
-              {index + 1}
+              {(index + 1) + " : " + round.scoreCT + "/" + round.scoreT}
             </div>
         )
       })}

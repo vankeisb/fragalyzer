@@ -1,5 +1,5 @@
 import {pos, Pos} from "tea-pop-core";
-import {DemoFile} from "demofile";
+import {DemoFile, TeamNumber} from "demofile";
 
 
 export type Positions = Map<string, FPos[]>;
@@ -29,6 +29,17 @@ export interface ParseResult {
   readonly players: ReadonlyArray<FPlayer>;
   readonly rounds: ReadonlyArray<FRound>;
   readonly tickRate: number;
+  readonly mapName: string;
+}
+
+function teamToString(teamNumber: number): string {
+  switch (teamNumber) {
+    case 1: return "Spectator";
+    case 2: return "Terrorists";
+    case 3: return "Counter Terrorists";
+    default:
+      return "Unknown-" + teamNumber;
+  }
 }
 
 export function parseDemo(file: File): Promise<ParseResult> {
@@ -86,7 +97,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
             const team = p.team;
             return {
               name: p.name,
-              clanName: team?.clanName || p.teamNumber.toString(),
+              clanName: team?.clanName || teamToString(p.teamNumber),
             };
           });
           console.log("players", players);
@@ -159,6 +170,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
             players,
             rounds,
             tickRate: demoFile.tickRate,
+            mapName: demoFile.header.mapName,
           };
           console.log("parsed", res);
           resolve(res);

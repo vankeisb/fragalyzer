@@ -28,6 +28,7 @@ export interface ParseResult {
   readonly positions: Positions;
   readonly players: ReadonlyArray<FPlayer>;
   readonly rounds: ReadonlyArray<FRound>;
+  readonly tickRate: number;
 }
 
 export function parseDemo(file: File): Promise<ParseResult> {
@@ -43,9 +44,14 @@ export function parseDemo(file: File): Promise<ParseResult> {
 
       const positions = new Map<string, FPos[]>();
 
+      let matchStarted = false;
+
       demoFile.on("tickend", tick => {
         // console.log("tick", nbTicks, tick);
         nbTicks++;
+        if (!matchStarted) {
+          return;
+        }
         const players = demoFile.entities.players;
         if (players && players.length > 0) {
           players.forEach(player => {
@@ -73,6 +79,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
       demoFile.gameEvents.on('begin_new_match', e => {
         console.log("begin match");
         if (players === undefined) {
+          matchStarted = true;
           players = [];
           const dfps = demoFile.players;
           players = dfps.filter(p => !p.isFakePlayer && p.teamNumber >= 2).map(p => {
@@ -151,6 +158,7 @@ export function parseDemo(file: File): Promise<ParseResult> {
             positions,
             players,
             rounds,
+            tickRate: demoFile.tickRate,
           };
           console.log("parsed", res);
           resolve(res);

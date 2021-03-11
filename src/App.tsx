@@ -49,16 +49,13 @@ function init(): [Model, Cmd<Msg>] {
 }
 
 const canvasId = "csgo-canvas";
+const canvasWrapperId = "canvas-wrapper";
 
-const getCanvas: Task<Error, HTMLCanvasElement> = Task.fromLambda(() => {
-  const c = document.getElementById(canvasId);
+const getCanvasDimensions: Task<Error, Dim> = Task.fromLambda(() => {
+  const c = document.getElementById(canvasWrapperId);
   if (!c) {
-    throw new Error("canvas not found");
+    throw new Error("canvas wrapper not found");
   }
-  return c as HTMLCanvasElement;
-})
-
-const getCanvasDimensions: Task<Error, Dim> = getCanvas.map(c => {
   const r = c.getBoundingClientRect();
   return dim(r.width, r.height);
 })
@@ -111,17 +108,31 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
         }
         case "ready": {
           const { parseResult, canvasDimensions } = state;
+          const size = Math.min(canvasDimensions.w, canvasDimensions.h);
           return (
               <div className="fragalyzer ready">
                 <div className="main">
-                  <canvas height={canvasDimensions.h} width={canvasDimensions.w} id={canvasId}/>
+                  <div id={canvasWrapperId} className="map-view">
+                    {/*<div className="map-image">*/}
+                    {/*  <img*/}
+                    {/*      height={size}*/}
+                    {/*      width={size}*/}
+                    {/*      src="./maps/mirage.png"*/}
+                    {/*  />*/}
+                    {/*</div>*/}
+                    <canvas
+                        height={canvasDimensions.h}
+                        width={canvasDimensions.w}
+                        id={canvasId}
+                    />
+                  </div>
                   <div className="right-panel">
                     {getTeams(parseResult).map(team => {
                       const teamPlayers = getPlayersInTeam(parseResult, team).map(p => p.name);
                       const allPlayers = getPlayerNames(parseResult);
                       return (
                           <div key={team} className="team">
-                            <h2 className="team">{team} <span className="score">TODO</span></h2>
+                            <h2 className="team">{team}</h2>
                             <ul>
                               {teamPlayers.map(player =>
                                   <li key={player}>

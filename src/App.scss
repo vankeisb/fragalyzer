@@ -22,8 +22,19 @@
       flex-grow: 1;
       flex-direction: row;
 
-      canvas {
+
+      .map-view {
         flex-grow: 1;
+        position: relative;
+
+        .map-image, canvas {
+          position: absolute;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          right: 0;
+        }
+
       }
 
       .right-panel {

@@ -85,8 +85,9 @@ export function drawPositions(canvas: HTMLCanvasElement, parseResult: ParseResul
   const tickRanges: ReadonlyArray<TickRange> = parseResult.rounds
       .filter((r, index) => selectedRounds.has(index))
       .map(r => [r.startTick, r.endTick]);
+  const alpha = 0.1 * parseResult.tickRate / 64;
   for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers, tickRanges).entries()) {
-    ctx.fillStyle = colorToString(getPlayerColor(allPlayers, playerName), 0.05);
+    ctx.fillStyle = colorToString(getPlayerColor(allPlayers, playerName), alpha);
     for (let pp of pps) {
       ctx.fillRect(pp.p.x, targetMax - pp.p.y, 2, 2);
     }

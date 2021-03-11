@@ -4,7 +4,7 @@ import {Cmd, Dispatcher, just, Maybe, noCmd, nothing, Result, Sub, Task} from "t
 import {DevTools, Program, WindowEvents} from "react-tea-cup";
 import {dim, Dim} from "tea-pop-core";
 import {colorToString, drawPositions, getPlayerColor} from "./DrawPositions";
-import {getPlayerNames, getPlayersInTeam, getTeams, parseDemo, ParseResult, Positions} from "./Parser";
+import {getPlayerNames, getPlayersInTeam, getTeams, parseDemo, ParseResult} from "./Parser";
 
 interface Model {
   readonly state: State;
@@ -108,7 +108,7 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
         }
         case "ready": {
           const { parseResult, canvasDimensions } = state;
-          const size = Math.min(canvasDimensions.w, canvasDimensions.h);
+          // const size = Math.min(canvasDimensions.w, canvasDimensions.h);
           return (
               <div className="fragalyzer ready">
                 <div className="main">

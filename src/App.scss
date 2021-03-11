@@ -4,12 +4,6 @@
   bottom: 0;
   left: 0;
   right: 0;
-  display: flex;
-
-  &.home, &.parsing {
-    align-items: center;
-    justify-content: center;
-  }
 
   &.ready {
 
@@ -76,7 +70,31 @@
     }
   }
 
+  &.home {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
 
+    .drop-zone {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 4px dashed grey;
+      background-color: lightgrey;
+
+      &.drop-over {
+        border: 4px dashed blue;
+        background-color: lightblue;
+      }
+    }
+  }
+
+  &.parsing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 

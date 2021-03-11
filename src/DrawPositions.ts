@@ -69,6 +69,11 @@ export function colorToString(c: Color, alpha: number): string {
   return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
 }
 
+const alphas: { [id: number]: number } = {
+  64: 0.2,
+  128: 0.1
+}
+
 export function drawPositions(canvas: HTMLCanvasElement, parseResult: ParseResult, selectedPlayers: ReadonlySet<string>, selectedRounds: ReadonlySet<number>) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
@@ -85,7 +90,7 @@ export function drawPositions(canvas: HTMLCanvasElement, parseResult: ParseResul
   const tickRanges: ReadonlyArray<TickRange> = parseResult.rounds
       .filter((r, index) => selectedRounds.has(index))
       .map(r => [r.startTick, r.endTick]);
-  const alpha = 0.1 * parseResult.tickRate / 64;
+  const alpha = alphas[parseResult.tickRate] || 0.2;
   for (let [playerName, pps] of filterPositions(normalizedPositions, selectedPlayers, tickRanges).entries()) {
     ctx.fillStyle = colorToString(getPlayerColor(allPlayers, playerName), alpha);
     for (let pp of pps) {

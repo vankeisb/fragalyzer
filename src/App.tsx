@@ -12,7 +12,7 @@ interface Model {
 }
 
 type State =
-    | { tag: 'fresh' }
+    | { tag: 'fresh', dragOver: boolean }
     | { tag: 'parsing' }
     | ReadyState
 
@@ -26,6 +26,7 @@ interface ReadyState {
 
 type Msg =
   | { tag: 'window-resized' }
+  | { tag: 'drag-over', over: boolean }
   | { tag: 'got-canvas-dimensions', r: Result<Error, Dim> }
   | { tag: 'file-dropped', file: Maybe<File> }
   | { tag: 'got-parse-result', r: Result<Error, ParseResult> }
@@ -42,7 +43,7 @@ function gotCanvasDimensions(r: Result<Error,Dim>): Msg {
 function init(): [Model, Cmd<Msg>] {
   return noCmd(
       {
-        state: { tag: "fresh" },
+        state: { tag: "fresh", dragOver: false },
         error: nothing,
       }
   );
@@ -78,33 +79,55 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
                   onDragOver={(e) => {
                     e.preventDefault();
                   }}
-                  onDropCapture={e => {
-                    e.preventDefault();
-                    const msg: Msg = {
-                      tag: 'file-dropped',
-                      file: nothing
-                    };
-                    if (e.dataTransfer.files.length === 1) {
-                      const f = e.dataTransfer.files.item(0);
-                      if (f) {
-                        dispatch({
-                          ...msg,
-                          file: just(f)
-                        })
-                      } else {
-                        dispatch(msg)
-                      }
-                    } else {
-                      dispatch(msg);
-                    }
-                  }}
               >
-                Drop a demo here !
+                <h1>CS:GO demo file analyzer</h1>
+                <p>
+                  <code>fragalyzer</code> is a tool that analyzes a .dem file and
+                  draws the paths of players.
+                </p>
+                <div
+                    className={`drop-zone${state.dragOver ? ' drop-over' : ''}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      dispatch({
+                        tag: 'drag-over',
+                        over: true,
+                      })
+                    }}
+                    onDragLeave={() => {
+                      dispatch({
+                        tag: 'drag-over',
+                        over: false,
+                      })
+                    }}
+                    onDropCapture={e => {
+                      e.preventDefault();
+                      const msg: Msg = {
+                        tag: 'file-dropped',
+                        file: nothing
+                      };
+                      if (e.dataTransfer.files.length === 1) {
+                        const f = e.dataTransfer.files.item(0);
+                        if (f) {
+                          dispatch({
+                            ...msg,
+                            file: just(f)
+                          })
+                        } else {
+                          dispatch(msg)
+                        }
+                      } else {
+                        dispatch(msg);
+                      }
+                    }}
+                >
+                  Drop a .dem here get started
+                </div>
               </div>
           )
         }
         case "parsing": {
-          return <div className="fragalyzer parsing"><p>Parsing, plz wait...</p></div>
+          return <div className="fragalyzer parsing"><p>Parsing demo file. It can take up to a few minutes...</p></div>
         }
         case "ready": {
           const { parseResult, canvasDimensions } = state;
@@ -165,8 +188,19 @@ function view(dispatch: Dispatcher<Msg>, model: Model) {
 function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
   switch (msg.tag) {
     case "window-resized": {
-      if (model.state.tag === "ready") {
+      return ifReady(model, () => {
         return [model, Task.attempt(getCanvasDimensions, gotCanvasDimensions)];
+      });
+    }
+    case "drag-over": {
+      if (model.state.tag === "fresh") {
+        return noCmd({
+          ...model,
+          state: {
+            tag: 'fresh',
+            dragOver: true
+          }
+        })
       }
       return noCmd(model);
     }
@@ -212,7 +246,8 @@ function update(msg: Msg, model: Model): [Model, Cmd<Msg>] {
           .withDefaultSupply(() => noCmd({
             ...model,
             state: {
-              tag: 'fresh'
+              tag: 'fresh',
+              dragOver: false,
             }
           }));
     }
@@ -328,7 +363,7 @@ function viewTimeline(dispatch: Dispatcher<Msg>, parseResult: ParseResult, selec
                 key={index}
                 onClick={() => dispatch({tag: 'toggle-round', index})}
             >
-              {index}
+              {index + 1}
             </div>
         )
       })}
